@@ -76,8 +76,27 @@ defmodule JpegDecoder do
 
   def data_with_ends(image_data) do
     without_end = trunc (((bit_size image_data) / 8) - 2)
-    <<real_data::binary-size(without_end), 0xff, 0xd9>> = image_data
-    real_data
+    <<scan_data::binary-size(without_end), 0xff, 0xd9>> = image_data
+    scan_data
+    |> decode_scan
+  end
+
+  def decode_scan(data) do
+    data
+    |> :binary.bin_to_list
+    |> filter_zero_after_ff
+  end
+
+  def filter_zero_after_ff([0xff, 0x00| data]) do
+    [0xff| filter_zero_after_ff(data)]
+  end
+
+  def filter_zero_after_ff([a|data]) do
+    [a|filter_zero_after_ff(data)]
+  end
+  
+  def filter_zero_after_ff([]) do
+    []
   end
 
   def sos(<<0xff, 0xda, seg_size::size(16), number_of_components_in_scan, other::binary>>) do
@@ -99,17 +118,54 @@ defmodule JpegDecoder do
     new_other
   end
 
-  def dht(<<0xff, 0xc4, seg_size::size(16), ht_information, number_of_symbols::size(128), other::binary>>) do
+  def dht(<<0xff, 0xc4, seg_size::size(16), num_of_ht::size(4), type_of_ht::size(1), 0::size(3), number_of_symbols::binary-size(16), other::binary>>) do
     slice_len = seg_size - 2
     IO.puts("The size of start of Define Huffman Table is #{slice_len}")
 
-    IO.puts("Length: #{ht_information}")
-    IO.puts("HT information: #{ht_information}")
-    IO.puts("Number of Symbols: #{number_of_symbols}")
+    IO.puts("Length of Huffman table: #{seg_size}")
+    IO.puts("Number of HT: #{num_of_ht}")
+    IO.puts("Type of HT: #{type_of_ht}")
+    <<num1, num2, num3, num4, num5, num6, num7, num8, num9, num10, num11, num12, num13, num14, num15, num16>> = number_of_symbols
+    total =  num1+ num2+ num3+ num4+ num5+ num6+ num7+ num8+ num9+ num10+ num11+ num12+ num13+ num14+ num15+ num16
+    # num1 = num1 * 8
+    # num2 = num2 * 8
+    # num3 = num3 * 8
+    # num4 = num4 * 8
+    # num5 = num5 * 8
+    # num6 = num6 * 8
+    # num7 = num7 * 8
+    # num8 = num8 * 8
+    # num9 = num9 * 8
+    # num10 = num10 * 8
+    # num11 = num11 * 8
+    # num12 = num12 * 8
+    # num13 = num13 * 8
+    # num14 = num14 * 8
+    # num15 = num15 * 8
+    # num16 = num16 * 8
+
+    <<num1_sym::binary-size(num1),num2_sym::binary-size(num2), num3_sym::binary-size(num3),num4_sym::binary-size(num4),num5_sym::binary-size(num5),num6_sym::binary-size(num6),num7_sym::binary-size(num7),num8_sym::binary-size(num8),num9_sym::binary-size(num9),num10_sym::binary-size(num10),num11_sym::binary-size(num11),num12_sym::binary-size(num12),num13_sym::binary-size(num13),num14_sym::binary-size(num14),num15_sym::binary-size(num15),num16_sym::binary-size(num16), t_other::binary>> = other
+    IO.puts num1
+    IO.puts num2
+    IO.puts num3
+    IO.puts num4
+    IO.puts num5
+    IO.puts num6
+    IO.puts num7
+    IO.puts num8
+    IO.puts num9
+    IO.puts num10
+    IO.puts num11
+    IO.puts num12
+    IO.puts num13
+    IO.puts num14
+    IO.puts num15
+    IO.puts num16
+    IO.inspect num3_sym
 
     t = (slice_len - 17) * 8
     <<old::size(t), new_other::binary>> = other
-    new_other
+    t_other
   end
 
   def dqt(<<0xff, 0xdb, seg_size::size(16), other::binary>>) do
