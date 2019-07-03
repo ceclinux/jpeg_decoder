@@ -5,7 +5,7 @@ defmodule JpegDecoder do
   """
 
   @doc """
-  Hello world.  
+  Hello world.
   ## Examples
 
   iex> JpegDecoder.hello()
@@ -94,7 +94,7 @@ defmodule JpegDecoder do
   def filter_zero_after_ff([a|data]) do
     [a|filter_zero_after_ff(data)]
   end
-  
+
   def filter_zero_after_ff([]) do
     []
   end
@@ -127,45 +127,62 @@ defmodule JpegDecoder do
     IO.puts("Type of HT: #{type_of_ht}")
     <<num1, num2, num3, num4, num5, num6, num7, num8, num9, num10, num11, num12, num13, num14, num15, num16>> = number_of_symbols
     total =  num1+ num2+ num3+ num4+ num5+ num6+ num7+ num8+ num9+ num10+ num11+ num12+ num13+ num14+ num15+ num16
-    # num1 = num1 * 8
-    # num2 = num2 * 8
-    # num3 = num3 * 8
-    # num4 = num4 * 8
-    # num5 = num5 * 8
-    # num6 = num6 * 8
-    # num7 = num7 * 8
-    # num8 = num8 * 8
-    # num9 = num9 * 8
-    # num10 = num10 * 8
-    # num11 = num11 * 8
-    # num12 = num12 * 8
-    # num13 = num13 * 8
-    # num14 = num14 * 8
-    # num15 = num15 * 8
-    # num16 = num16 * 8
+
 
     <<num1_sym::binary-size(num1),num2_sym::binary-size(num2), num3_sym::binary-size(num3),num4_sym::binary-size(num4),num5_sym::binary-size(num5),num6_sym::binary-size(num6),num7_sym::binary-size(num7),num8_sym::binary-size(num8),num9_sym::binary-size(num9),num10_sym::binary-size(num10),num11_sym::binary-size(num11),num12_sym::binary-size(num12),num13_sym::binary-size(num13),num14_sym::binary-size(num14),num15_sym::binary-size(num15),num16_sym::binary-size(num16), t_other::binary>> = other
-    IO.puts num1
-    IO.puts num2
-    IO.puts num3
-    IO.puts num4
-    IO.puts num5
-    IO.puts num6
-    IO.puts num7
-    IO.puts num8
-    IO.puts num9
-    IO.puts num10
-    IO.puts num11
-    IO.puts num12
-    IO.puts num13
-    IO.puts num14
-    IO.puts num15
-    IO.puts num16
-    IO.inspect num3_sym
 
+    num_arr = Enum.to_list(1..16)
+    num_sym_arr = [num1_sym, num2_sym,num3_sym,num4_sym,num5_sym,num6_sym,num7_sym,num8_sym,num9_sym,num10_sym,num11_sym,num12_sym,num13_sym,num14_sym, num15_sym, num16_sym]
+    zipped_huff = List.zip [num_arr, num_sym_arr]
+
+    huff_map = parse_huff(0, zipped_huff)
+    IO.inspect huff_map
     t = (slice_len - 17) * 8
     <<old::size(t), new_other::binary>> = other
     t_other
+  end
+
+  def parse_huff(pre, [{0, _}|other]) do
+    parse_huff(pre, other)
+  end
+
+  def parse_huff(pre, [{len, nums}|others]) do
+    new_pre = if pre != 0 do
+       pre + 1
+    else
+      pre
+    end
+    pre_str = Integer.to_string(new_pre, 2)
+    # IO.inspect pre_str
+
+    {new_pre_num, huff_tuple} = get_values(pre_str, len, nums)
+    # IO.inspect huff_tuple
+    [huff_tuple |  parse_huff(new_pre_num - 1, others)]
+  end
+
+  def parse_huff(_, []) do
+    []
+  end
+
+  def get_values(pre_str, len, nums) do
+    IO.puts len
+    IO.puts pre_str
+    len_diff = len - (String.length pre_str)
+    IO.puts len_diff
+    new_pre_str = pre_str <> adding_zeros(len_diff)
+
+    new_pre_int = new_pre_str |> String.to_integer(2)
+    IO.puts new_pre_int
+    Enum.reduce(:binary.bin_to_list(nums), {new_pre_int, []}, (fn x, {num, acc_tuples} -> {num+1, [{num, x}|acc_tuples]} end))
+  end
+
+  def adding_zeros(num) when num > 0 do
+    IO.puts(num)
+    "0" <> adding_zeros(num - 1)
+  end
+
+  def adding_zeros(0) do
+    ""
   end
 
   def dqt(<<0xff, 0xdb, seg_size::size(16), other::binary>>) do
