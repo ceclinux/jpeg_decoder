@@ -101,8 +101,8 @@ defmodule JpegDecoder do
 
   def sos(<<0xff, 0xda, seg_size::size(16), number_of_components_in_scan, other::binary>>) do
 
-    t = (2 * number_of_components_in_scan) * 8
-    <<old::size(t), ignorable_bytes::size(24), new_other::binary>> = other
+    t = (2 * number_of_components_in_scan)
+    <<_::binary-size(t), ignorable_bytes::size(24), new_other::binary>> = other
     new_other
   end
 
@@ -113,9 +113,35 @@ defmodule JpegDecoder do
 
     IO.puts("Data precision: #{data_precision}")
 
-    t = number_of_components * 3 * 8
-    <<old::size(t), new_other::binary>> = other
+    IO.puts("Number of Components: " <> case number_of_components do
+      1 -> "grey scaled"
+      3 -> "color YcbCr or YIQ"
+      4 -> "color CMYK"
+    end)
+
+    each_component_size = number_of_components * 3
+
+    <<each_component::binary-size(each_component_size), new_other::binary>> = other
+    decode_each_component(each_component)
     new_other
+  end
+
+  def decode_each_component(<<component_id, sampling_factors_vertical::size(4),sampling_factors_horizontal::size(4), quantization_table_num ,others::binary>>) do
+    IO.puts("Component Id: " <> case component_id do
+      1 -> "Y"
+      2 -> "Cb"
+      3 -> "Cr"
+      4 -> "I"
+      5 -> "Q"
+    end)
+    IO.puts("Sampling Factors Vertical: #{sampling_factors_vertical}")
+    IO.puts("Sampling Factors Horizontal: #{sampling_factors_horizontal}")
+    IO.puts("Quantization Table Num: #{quantization_table_num}")
+    decode_each_component(others)
+  end
+
+  def decode_each_component(<<>>) do
+
   end
 
   def dht(<<0xff, 0xc4, seg_size::size(16), num_of_ht::size(4), type_of_ht::size(1), 0::size(3), number_of_symbols::binary-size(16), other::binary>>) do
@@ -165,19 +191,14 @@ defmodule JpegDecoder do
   end
 
   def get_values(pre_str, len, nums) do
-    IO.puts len
-    IO.puts pre_str
     len_diff = len - (String.length pre_str)
-    IO.puts len_diff
     new_pre_str = pre_str <> adding_zeros(len_diff)
 
     new_pre_int = new_pre_str |> String.to_integer(2)
-    IO.puts new_pre_int
     Enum.reduce(:binary.bin_to_list(nums), {new_pre_int, []}, (fn x, {num, acc_tuples} -> {num+1, [{num, x}|acc_tuples]} end))
   end
 
   def adding_zeros(num) when num > 0 do
-    IO.puts(num)
     "0" <> adding_zeros(num - 1)
   end
 
