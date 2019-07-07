@@ -144,18 +144,24 @@ defmodule JpegDecoder do
 
   end
 
-  def dht(<<0xff, 0xc4, seg_size::size(16), num_of_ht::size(4), type_of_ht::size(1), 0::size(3), number_of_symbols::binary-size(16), other::binary>>) do
+  def dht(<<0xff, 0xc4, seg_size::size(16), other::binary>>) do
     slice_len = seg_size - 2
     IO.puts("The size of start of Define Huffman Table is #{slice_len}")
-
     IO.puts("Length of Huffman table: #{seg_size}")
-    IO.puts("Number of HT: #{num_of_ht}")
-    IO.puts("Type of HT: #{type_of_ht}")
+    parse_huffman(other, slice_len)
+  end
+
+
+  def parse_huffman(<<table_class::size(4), type_of_ht::size(4), number_of_symbols::binary-size(16), other::binary>>, count) when count != 0 do
+
     <<num1, num2, num3, num4, num5, num6, num7, num8, num9, num10, num11, num12, num13, num14, num15, num16>> = number_of_symbols
-    total =  num1+ num2+ num3+ num4+ num5+ num6+ num7+ num8+ num9+ num10+ num11+ num12+ num13+ num14+ num15+ num16
-
-
+    total_symbols = num1+ num2+ num3+ num4+ num5+ num6+ num7+ num8+ num9+ num10+ num11+ num12+ num13+ num14+ num15+ num16
     <<num1_sym::binary-size(num1),num2_sym::binary-size(num2), num3_sym::binary-size(num3),num4_sym::binary-size(num4),num5_sym::binary-size(num5),num6_sym::binary-size(num6),num7_sym::binary-size(num7),num8_sym::binary-size(num8),num9_sym::binary-size(num9),num10_sym::binary-size(num10),num11_sym::binary-size(num11),num12_sym::binary-size(num12),num13_sym::binary-size(num13),num14_sym::binary-size(num14),num15_sym::binary-size(num15),num16_sym::binary-size(num16), t_other::binary>> = other
+    IO.puts("Table Class: #{case table_class do
+      0 -> "DC Table"
+      1 -> "AC Table"
+    end}")
+    IO.puts("Type of HT: #{type_of_ht}")
 
     num_arr = Enum.to_list(1..16)
     num_sym_arr = [num1_sym, num2_sym,num3_sym,num4_sym,num5_sym,num6_sym,num7_sym,num8_sym,num9_sym,num10_sym,num11_sym,num12_sym,num13_sym,num14_sym, num15_sym, num16_sym]
@@ -163,9 +169,11 @@ defmodule JpegDecoder do
 
     huff_map = parse_huff(0, zipped_huff)
     IO.inspect huff_map
-    t = (slice_len - 17) * 8
-    <<old::size(t), new_other::binary>> = other
-    t_other
+
+    parse_huffman(t_other, count - total_symbols - 17)
+  end
+
+  def parse_huffman(<<table_class::size(4), type_of_ht::size(4), number_of_symbols::binary-size(16), other::binary>>, 0) do
   end
 
   def parse_huff(pre, [{0, _}|other]) do
@@ -179,10 +187,9 @@ defmodule JpegDecoder do
       pre
     end
     pre_str = Integer.to_string(new_pre, 2)
-    # IO.inspect pre_str
 
     {new_pre_num, huff_tuple} = get_values(pre_str, len, nums)
-    # IO.inspect huff_tuple
+
     [huff_tuple |  parse_huff(new_pre_num - 1, others)]
   end
 
