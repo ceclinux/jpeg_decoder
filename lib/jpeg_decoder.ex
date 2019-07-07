@@ -69,6 +69,7 @@ defmodule JpegDecoder do
       |> sos
       |> data_with_ends
 
+      Agent.get(:huffman_whole_table, fn map -> map end)
     rescue
       MatchError -> "Not a jpeg file"
     end
@@ -148,7 +149,8 @@ defmodule JpegDecoder do
     slice_len = seg_size - 2
     IO.puts("The size of start of Define Huffman Table is #{slice_len}")
     IO.puts("Length of Huffman table: #{seg_size}")
-    parse_huffman(other, slice_len)
+    Agent.start_link(fn -> %{} end, name: :huffman_whole_table)
+    whole_huff_table = parse_huffman(other, slice_len)
   end
 
 
@@ -167,21 +169,20 @@ defmodule JpegDecoder do
     num_sym_arr = [num1_sym, num2_sym,num3_sym,num4_sym,num5_sym,num6_sym,num7_sym,num8_sym,num9_sym,num10_sym,num11_sym,num12_sym,num13_sym,num14_sym, num15_sym, num16_sym]
     zipped_huff = List.zip [num_arr, num_sym_arr]
 
-    huff_map = parse_huff(0, zipped_huff)
-    IO.inspect huff_map
-
+    huff_map = build_huffman(0, zipped_huff)
+    Agent.update(:huffman_whole_table, fn map -> Map.put(map, {table_class, type_of_ht}, huff_map) end)
     parse_huffman(t_other, count - total_symbols - 17)
   end
 
-  def parse_huffman(end_of_huff, 0) do
-    end_of_huff
+  def parse_huffman(remaining, 0) do
+    remaining
   end
 
-  def parse_huff(pre, [{0, _}|other]) do
-    parse_huff(pre, other)
+  def build_huffman(pre, [{0, _}|other]) do
+    build_huffman(pre, other)
   end
 
-  def parse_huff(pre, [{len, nums}|others]) do
+  def build_huffman(pre, [{len, nums}|others]) do
     new_pre = if pre != 0 do
        pre + 1
     else
@@ -191,10 +192,10 @@ defmodule JpegDecoder do
 
     {new_pre_num, huff_tuple} = get_values(pre_str, len, nums)
 
-    [huff_tuple |  parse_huff(new_pre_num - 1, others)]
+    [huff_tuple |  build_huffman(new_pre_num - 1, others)]
   end
 
-  def parse_huff(_, []) do
+  def build_huffman(_, []) do
     []
   end
 
@@ -236,11 +237,16 @@ defmodule JpegDecoder do
     IO.puts("The length of FF #{Integer.to_string(seg_mark, 16)} is #{slice_len}")
 
     t = 8 * slice_len
-    <<old::size(t), new_other::binary>> = other
+    <<_::size(t), new_other::binary>> = other
     4 + slice_len + parse_other_app_seg(new_other)
   end
 
   def parse_other_app_seg(_)  do
     0
+  end
+
+  def dc_value_decoding(length, value) do
+    offset = -((1 <<< length) - 1)
+    offset + value
   end
 end
