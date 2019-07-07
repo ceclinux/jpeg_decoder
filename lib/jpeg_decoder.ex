@@ -173,7 +173,8 @@ defmodule JpegDecoder do
     parse_huffman(t_other, count - total_symbols - 17)
   end
 
-  def parse_huffman(<<table_class::size(4), type_of_ht::size(4), number_of_symbols::binary-size(16), other::binary>>, 0) do
+  def parse_huffman(end_of_huff, 0) do
+    end_of_huff
   end
 
   def parse_huff(pre, [{0, _}|other]) do
