@@ -61,7 +61,7 @@ defmodule JpegDecoder do
       IO.puts("Thumbnail data: #{thumbnail_data}")
 
 
-      other
+      scan_data = other
       |> other_app_seg
       |> dqt
       |> sof0
@@ -70,6 +70,13 @@ defmodule JpegDecoder do
       |> data_with_ends
 
       Agent.get(:huffman_whole_table, fn map -> map end)
+      |> IO.inspect
+
+      Agent.get(:huffman_decode_sequence, fn list -> list end)
+      |> IO.inspect
+
+      Agent.stop(:huffman_whole_table)
+      Agent.stop(:huffman_decode_sequence)
     rescue
       MatchError -> "Not a jpeg file"
     end
@@ -102,11 +109,24 @@ defmodule JpegDecoder do
 
   def sos(<<0xff, 0xda, seg_size::size(16), number_of_components_in_scan, other::binary>>) do
 
+    IO.puts("Number of Components in scan: #{number_of_components_in_scan}")
+    Agent.start_link(fn -> [] end, name: :huffman_decode_sequence)
+    read_each_component(other, number_of_components_in_scan)
     t = (2 * number_of_components_in_scan)
     <<_::binary-size(t), ignorable_bytes::size(24), new_other::binary>> = other
     new_other
   end
 
+  def read_each_component(<<component_id, ac_table::size(4), dc_table::size(4), other::binary>>, number_of_components_in_scan) when number_of_components_in_scan != 0 do
+    IO.puts("Component Id: #{component_id}")
+    IO.puts("AC table: #{ac_table}")
+    IO.puts("DC table: #{dc_table}")
+    Agent.update(:huffman_decode_sequence, fn t -> t ++ [{dc_table, ac_table}] end)
+    read_each_component(other, number_of_components_in_scan - 1)
+  end
+
+  def read_each_component(_, 0) do
+  end
 
   def sof0(<<0xff, 0xc0, seg_size::size(16), data_precision, image_height::size(16), image_width::size(16), number_of_components, other::binary>>) do
     slice_len = seg_size - 2
