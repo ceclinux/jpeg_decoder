@@ -75,11 +75,30 @@ defmodule JpegDecoder do
       Agent.get(:huffman_decode_sequence, fn list -> list end)
       |> IO.inspect
 
+      scan_data
+      |> IO.inspect
+      decode_data_with_huffman_table(scan_data)
       Agent.stop(:huffman_whole_table)
       Agent.stop(:huffman_decode_sequence)
+
     rescue
       MatchError -> "Not a jpeg file"
     end
+  end
+
+  def decode_data_with_huffman_table(scan_data) do
+    huffman_decode_sequence = Agent.get(:huffman_decode_sequence, fn list -> list end)
+    huffman_whole_table = Agent.get(:huffman_whole_table, fn map -> map end)
+    decode_sequence_stream = Stream.cycle huffman_decode_sequence
+    huffman_decode_sequence
+    |> Stream.cycle
+    |> Stream.map(fn t -> Map.get(huffman_whole_table, t) end)
+    |> Enum.reduce([], fn x, acc -> match(x, scan_data) end)
+
+  end
+
+  def match(x, scan_data) do
+    IO.inspect x
   end
 
   def data_with_ends(image_data) do
@@ -91,20 +110,23 @@ defmodule JpegDecoder do
 
   def decode_scan(data) do
     data
-    |> :binary.bin_to_list
     |> filter_zero_after_ff
   end
 
-  def filter_zero_after_ff([0xff, 0x00| data]) do
-    [0xff| filter_zero_after_ff(data)]
+  def filter_zero_after_ff(<<0xff, 0x00, data::binary>>)  do
+    <<0xff>> <> filter_zero_after_ff(data)
   end
 
-  def filter_zero_after_ff([a|data]) do
-    [a|filter_zero_after_ff(data)]
+  def filter_zero_after_ff(<<a, b, data::binary>>) when b != 0 do
+    <<a>> <> filter_zero_after_ff(<<b>> <> data)
   end
 
-  def filter_zero_after_ff([]) do
-    []
+  def filter_zero_after_ff(<<>>) do
+    <<>>
+  end
+
+  def filter_zero_after_ff(<<b>>) do
+    <<b>>
   end
 
   def sos(<<0xff, 0xda, seg_size::size(16), number_of_components_in_scan, other::binary>>) do
@@ -189,9 +211,19 @@ defmodule JpegDecoder do
     num_sym_arr = [num1_sym, num2_sym,num3_sym,num4_sym,num5_sym,num6_sym,num7_sym,num8_sym,num9_sym,num10_sym,num11_sym,num12_sym,num13_sym,num14_sym, num15_sym, num16_sym]
     zipped_huff = List.zip [num_arr, num_sym_arr]
 
-    huff_map = build_huffman(0, zipped_huff)
+    huff_map = build_huffman(0, zipped_huff) |> huff_map_binary
     Agent.update(:huffman_whole_table, fn map -> Map.put(map, {table_class, type_of_ht}, huff_map) end)
     parse_huffman(t_other, count - total_symbols - 17)
+  end
+
+  def huff_map_binary(huff_map) do
+    huff_map
+    |> Enum.reduce({[], 1}, fn t, {acc, level} -> {Enum.map(t, fn s -> num_to_binary(s, level) end) ++ [acc], level + 1} end )
+  end
+
+  def num_to_binary(num, level) do
+    bit_level = level * 8
+    <<num::size(bit_level)>>
   end
 
   def parse_huffman(remaining, 0) do
