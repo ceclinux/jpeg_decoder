@@ -102,7 +102,7 @@ defmodule JpegDecoder do
   end
 
   def data_with_ends(image_data) do
-    without_end = trunc (((bit_size image_data) / 8) - 2)
+    without_end = (byte_size image_data) - 2
     <<scan_data::binary-size(without_end), 0xff, 0xd9>> = image_data
     scan_data
     |> decode_scan
@@ -217,8 +217,10 @@ defmodule JpegDecoder do
   end
 
   def huff_map_binary(huff_map) do
+    {new_huff_map, _} = 
     huff_map
-    |> Enum.reduce({[], 1}, fn t, {acc, level} -> {Enum.map(t, fn s -> num_to_binary(s, level) end) ++ [acc], level + 1} end )
+    |> Enum.reduce({[], 1}, fn t, {acc, level} -> {Enum.map(t, fn {key, value} -> {num_to_binary(key, level), value} end)  ++ acc, level + 1} end )
+    new_huff_map
   end
 
   def num_to_binary(num, level) do
@@ -272,8 +274,7 @@ defmodule JpegDecoder do
 
     IO.puts("The size of dqt table is #{slice_len}")
 
-    t = 8 * slice_len
-    <<old::size(t), new_other::binary>> = other
+    <<_::binary-size(slice_len), new_other::binary>> = other
     new_other
   end
 
@@ -288,8 +289,7 @@ defmodule JpegDecoder do
 
     IO.puts("The length of FF #{Integer.to_string(seg_mark, 16)} is #{slice_len}")
 
-    t = 8 * slice_len
-    <<_::size(t), new_other::binary>> = other
+    <<_::binary-size(slice_len), new_other::binary>> = other
     4 + slice_len + parse_other_app_seg(new_other)
   end
 
