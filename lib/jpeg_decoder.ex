@@ -91,14 +91,24 @@ defmodule JpegDecoder do
     huffman_whole_table = Agent.get(:huffman_whole_table, fn map -> map end)
     decode_sequence_stream = Stream.cycle huffman_decode_sequence
     huffman_decode_sequence
-    |> Stream.cycle
+    # |> Stream.cycle
     |> Stream.map(fn t -> Map.get(huffman_whole_table, t) end)
+    |> Stream.take(1)
     |> Enum.reduce([], fn x, acc -> match(x, scan_data) end)
 
   end
 
   def match(x, scan_data) do
-    IO.inspect x
+    Enum.find(x, fn {key,value} -> (scan_data |> first_n_bits(bit_size(key))) == key end)
+    |> IO.inspect
+  end
+
+  def first_n_bits(data, n) do
+    size = bit_size(data)
+    remain_size = size - n
+    <<match::size(n), _::size(remain_size)>> = data
+    # IO.inspect <<match::size(n)>>
+    <<match::size(n)>>
   end
 
   def data_with_ends(image_data) do
@@ -217,15 +227,14 @@ defmodule JpegDecoder do
   end
 
   def huff_map_binary(huff_map) do
-    {new_huff_map, _} = 
+    {new_huff_map, _} =
     huff_map
     |> Enum.reduce({[], 1}, fn t, {acc, level} -> {Enum.map(t, fn {key, value} -> {num_to_binary(key, level), value} end)  ++ acc, level + 1} end )
     new_huff_map
   end
 
   def num_to_binary(num, level) do
-    bit_level = level * 8
-    <<num::size(bit_level)>>
+    <<num::size(level)>>
   end
 
   def parse_huffman(remaining, 0) do
